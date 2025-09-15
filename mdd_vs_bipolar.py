@@ -1,14 +1,28 @@
 import numpy as np
 import pandas as pd
 import mne
-from mne.time_frequency import psd_welch   # ✅ works in MNE 1.5.1
+from scipy.signal import welch   # ✅ use SciPy instead of MNE psd_welch
 
 import matplotlib
-matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud (no display needed)
+matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud (headless)
 import matplotlib.pyplot as plt
 import io
 
 
+# -------------------
+# PSD computation
+# -------------------
+
+def psd_welch(raw, fmin, fmax, n_fft=1024, n_overlap=256, n_per_seg=512, verbose=False):
+    """Custom Welch PSD using SciPy, compatible with Python 3.13 & Streamlit Cloud."""
+    data = raw.get_data()
+    sfreq = raw.info["sfreq"]
+    psds = []
+    for ch in data:
+        freqs, pxx = welch(ch, sfreq, nperseg=n_per_seg, noverlap=n_overlap, nfft=n_fft)
+        idx = (freqs >= fmin) & (freqs <= fmax)
+        psds.append(pxx[idx])
+    return np.array(psds), freqs[idx]
 
 
 # -------------------
