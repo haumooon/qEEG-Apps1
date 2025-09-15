@@ -1,6 +1,19 @@
+import streamlit as st
 
+st.title("qEEG Apps1")
 
-
+# Download button for Farsi Report (before any analysis)
+try:
+    with open("Farsi Report.docx", "rb") as file:
+        doc_bytes = file.read()
+    st.download_button(
+        label="Download Farsi Report",
+        data=doc_bytes,
+        file_name="Farsi Report.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+except Exception as e:
+    st.warning("Farsi Report.docx not found. Please add it to the app folder.")
 
 import io
 import os
@@ -17,26 +30,7 @@ from docx import Document
 from docx.shared import Inches
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-import streamlit as st
 
-
-import streamlit as st
-
-st.title("qEEG Apps1")
-
-# Download button for Farsi Report (before any analysis)
-with open("Farsi Report.docx", "rb") as file:
-    doc_bytes = file.read()
-
-st.download_button(
-    label="Download Farsi Report",
-    data=doc_bytes,
-    file_name="Farsi Report.docx",
-    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-)
-
-# --- Your analysis code starts here ---
-# ... rest of your app ...
 # -------------------- Config --------------------
 BANDS = {"Delta": (1,4), "Theta": (4,8), "Alpha": (8,12), "Beta": (12,30)}
 TOTAL  = (1,30)
