@@ -1,8 +1,9 @@
 streamlit
-mne==1.6.1
+mne==1.5.1
 pyedflib
 numpy
 pandas
 matplotlib
 scipy
 python-docx
+
