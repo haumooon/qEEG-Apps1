@@ -1,0 +1,8 @@
+streamlit
+mne
+pyedflib
+numpy
+pandas
+matplotlib
+scipy
+python-docx
