@@ -1,9 +1,10 @@
 streamlit
 mne==1.5.1
-pyedflib
 numpy
-pandas
-matplotlib
 scipy
+matplotlib
+pandas
+pyedflib
 python-docx
+
 

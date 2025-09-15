@@ -1,21 +1,10 @@
 import numpy as np
 import pandas as pd
 import mne
-
-# ✅ Robust psd_welch import: works on both old & new MNE
-try:
-    from mne.time_frequency import psd_welch
-except ImportError:
-    try:
-        psd_welch = mne.time_frequency.psd_welch
-    except AttributeError:
-        raise ImportError(
-            "psd_welch not found in this MNE version. "
-            "Please check requirements.txt (should pin mne==1.5.1)."
-        )
+from mne.time_frequency import psd_welch   # ✅ works in MNE 1.5.1
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud (no display needed)
 import matplotlib.pyplot as plt
 import io
 
