@@ -1,9 +1,9 @@
-
-
 import numpy as np
 import pandas as pd
 import mne
-from scipy.signal import welch   # ✅ use SciPy instead of MNE psd_welch
+from scipy.signal import welch   # ✅ use SciPy Welch instead of MNE psd_welch
+from scipy.interpolate import griddata
+from matplotlib.patches import Circle
 
 import matplotlib
 matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud
@@ -54,7 +54,6 @@ def compute_raw_powers(edf_path):
         n_overlap=256, n_per_seg=512, verbose=False
     )
 
-    # psds shape: (n_channels, n_freqs)
     bands = {"Delta": (1, 4), "Theta": (4, 8), "Alpha": (8, 12), "Beta": (12, 30)}
     data = {}
 
@@ -98,9 +97,7 @@ def add_zrel_zabs(df, norms_age):
     dfz = df.copy()
 
     for band in ["Delta", "Theta", "Alpha", "Beta"]:
-        # Select the rows for this band
         band_rows = norms_age[norms_age["Band"].str.lower() == band.lower()]
-
         for _, row in band_rows.iterrows():
             ch = row["Channel"]
             if ch in df.index:
@@ -132,25 +129,56 @@ def compute_faa(dfz):
         return np.nan, "Unavailable"
 
 
-def _topomap_png(df, band, title):
-    """Return PNG image of topomap for a given band."""
-    from mne.channels import make_standard_montage
+# -------------------
+# Custom Topomap (2D interpolation, no MNE dependency)
+# -------------------
 
-    montage = make_standard_montage("standard_1020")
-    values = [df.loc[ch, band] if ch in df.index else np.nan for ch in montage.ch_names]
-    pos = montage.get_positions()["ch_pos"]
+# Approximate 2D scalp positions for 10–20 montage
+POS = {
+    "Fp1": (-0.5, 0.9), "Fp2": (0.5, 0.9),
+    "F7": (-0.9, 0.5), "F3": (-0.4, 0.5), "Fz": (0.0, 0.55),
+    "F4": (0.4, 0.5), "F8": (0.9, 0.5),
+    "T7": (-1.0, 0.0), "C3": (-0.5, 0.0), "Cz": (0.0, 0.0),
+    "C4": (0.5, 0.0), "T8": (1.0, 0.0),
+    "P7": (-0.9, -0.5), "P3": (-0.4, -0.5), "Pz": (0.0, -0.55),
+    "P4": (0.4, -0.5), "P8": (0.9, -0.5),
+    "O1": (-0.5, -0.9), "O2": (0.5, -0.9)
+}
 
-    data = np.array(values)
-    fig, ax = plt.subplots()
-    im, _ = mne.viz.plot_topomap(
-        data, pos, names=montage.ch_names,
-        show=False, contours=0, sensors=True, axes=ax
-    )
-    ax.set_title(title)
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png")
+def _topomap_png(df, key: str, title: str) -> bytes:
+    """Return PNG of scalp map for a given band or Z-score key (no MNE required)."""
+    xs, ys, zs = [], [], []
+    for ch, (x, y) in POS.items():
+        if ch not in df.index:
+            continue
+        v = df.loc[ch, key] if key in df.columns else np.nan
+        if np.isfinite(v):
+            xs.append(x); ys.append(y); zs.append(float(v))
+    fig = plt.figure(figsize=(4.6, 3.9))
+    ax = fig.add_subplot(111, aspect="equal")
+    if len(xs) == 0:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center")
+    else:
+        xs, ys, zs = np.array(xs), np.array(ys), np.array(zs)
+        grid_x, grid_y = np.mgrid[-1:1:220j, -1:1:220j]
+        pts = np.vstack([xs, ys]).T
+        grid_z = griddata(pts, zs, (grid_x, grid_y), method="cubic")
+        r = np.sqrt(grid_x**2 + grid_y**2); grid_z[r > 1] = np.nan
+        if key.startswith("Z"):
+            levels = np.linspace(-3, 3, 13)
+            cf = ax.contourf(grid_x, grid_y, grid_z, levels=levels,
+                             cmap="RdBu_r", vmin=-3, vmax=3)
+        else:
+            cf = ax.contourf(grid_x, grid_y, grid_z, levels=12)
+        plt.colorbar(cf, ax=ax, shrink=0.75)
+    ax.add_patch(Circle((0, 0), 1.0, fill=False, lw=2))
+    ax.scatter([p[0] for p in POS.values()],
+               [p[1] for p in POS.values()], c="k", s=12)
+    ax.set_xticks([]); ax.set_yticks([]); ax.set_title(title)
+    bio = io.BytesIO()
+    fig.savefig(bio, format="png", dpi=160, bbox_inches="tight")
     plt.close(fig)
-    return buf.getvalue()
+    return bio.getvalue()
 
 
 def generate_all_topomaps(df):
