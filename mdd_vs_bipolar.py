@@ -1,11 +1,14 @@
+
+
 import numpy as np
 import pandas as pd
 import mne
+from mne.time_frequency import psd_welch  # ✅ direct import (fix for Streamlit Cloud)
 import matplotlib
-matplotlib.use("Agg")  # needed for Streamlit cloud (no display)
+matplotlib.use("Agg")  # ✅ safe for cloud (no display needed)
 import matplotlib.pyplot as plt
 import io
-import base64
+
 
 # -------------------
 # Utility functions
@@ -15,6 +18,7 @@ def normalize_label(ch_name):
     """Normalize EEG channel labels (case-insensitive)."""
     return ch_name.strip().capitalize()
 
+
 def get(df, ch, band):
     """Get a single value from dataframe with (channel, band)."""
     try:
@@ -22,11 +26,13 @@ def get(df, ch, band):
     except Exception:
         return np.nan
 
+
 def compute_raw_powers(edf_path):
     """Compute relative band powers from EDF file."""
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-    psds, freqs = mne.time_frequency.psd_welch(
-        raw, fmin=1, fmax=30, n_fft=1024, n_overlap=256, n_per_seg=512, verbose=False
+    psds, freqs = psd_welch(   # ✅ use direct import
+        raw, fmin=1, fmax=30, n_fft=1024,
+        n_overlap=256, n_per_seg=512, verbose=False
     )
     psds = np.mean(psds, axis=0)
     bands = {"Delta": (1, 4), "Theta": (4, 8), "Alpha": (8, 12), "Beta": (12, 30)}
@@ -40,14 +46,14 @@ def compute_raw_powers(edf_path):
         data[ch] = row
     return pd.DataFrame(data).T
 
+
 def compute_clean_powers(edf_path, p2p_thresh=150):
     """Compute relative band powers after simple artifact rejection."""
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
     data = raw.get_data()
     kept_epochs = []
-    # crude artifact rejection (per 2-sec epoch)
     sf = int(raw.info["sfreq"])
-    nper = 2 * sf
+    nper = 2 * sf  # 2-second epochs
     for start in range(0, data.shape[1] - nper, nper):
         seg = data[:, start:start+nper]
         if np.max(seg) - np.min(seg) < p2p_thresh:
@@ -57,6 +63,7 @@ def compute_clean_powers(edf_path, p2p_thresh=150):
     clean_data = np.concatenate(kept_epochs, axis=1)
     raw._data = clean_data
     return compute_raw_powers(edf_path), len(kept_epochs)
+
 
 def add_zrel_zabs(df, norms_age):
     """Add Z-scores (relative and absolute) vs Cuban norms for a given age row."""
@@ -72,6 +79,7 @@ def add_zrel_zabs(df, norms_age):
             except Exception:
                 dfz.loc[ch, f"Zrel_{band}"] = np.nan
     return dfz
+
 
 def compute_faa(dfz):
     """Compute FAA (frontal alpha asymmetry)."""
@@ -89,9 +97,9 @@ def compute_faa(dfz):
     except Exception:
         return np.nan, "Unavailable"
 
+
 def _topomap_png(df, band, title):
     """Return PNG image of topomap for a given band."""
-    import matplotlib.pyplot as plt
     from mne.channels import make_standard_montage
 
     montage = make_standard_montage("standard_1020")
@@ -101,7 +109,10 @@ def _topomap_png(df, band, title):
 
     data = np.array(values)
     fig, ax = plt.subplots()
-    im, _ = mne.viz.plot_topomap(data, pos, names=montage.ch_names, show=False, contours=0, sensors=True, axes=ax)
+    im, _ = mne.viz.plot_topomap(
+        data, pos, names=montage.ch_names,
+        show=False, contours=0, sensors=True, axes=ax
+    )
     ax.set_title(title)
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
