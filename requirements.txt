@@ -1,5 +1,5 @@
 streamlit
-mne
+mne==1.5.1
 pyedflib
 numpy
 pandas
