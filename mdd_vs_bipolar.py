@@ -1,11 +1,15 @@
-
-
 import numpy as np
 import pandas as pd
 import mne
-from mne.time_frequency import psd_welch  # ✅ direct import (fix for Streamlit Cloud)
+
+# ✅ Robust import for psd_welch across MNE versions
+try:
+    from mne.time_frequency import psd_welch
+except ImportError:
+    psd_welch = mne.time_frequency.psd_welch
+
 import matplotlib
-matplotlib.use("Agg")  # ✅ safe for cloud (no display needed)
+matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud
 import matplotlib.pyplot as plt
 import io
 
@@ -30,7 +34,7 @@ def get(df, ch, band):
 def compute_raw_powers(edf_path):
     """Compute relative band powers from EDF file."""
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-    psds, freqs = psd_welch(   # ✅ use direct import
+    psds, freqs = psd_welch(
         raw, fmin=1, fmax=30, n_fft=1024,
         n_overlap=256, n_per_seg=512, verbose=False
     )
@@ -103,7 +107,6 @@ def _topomap_png(df, band, title):
     from mne.channels import make_standard_montage
 
     montage = make_standard_montage("standard_1020")
-    ch_names = df.index
     values = [df.loc[ch, band] if ch in df.index else np.nan for ch in montage.ch_names]
     pos = montage.get_positions()["ch_pos"]
 
