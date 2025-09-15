@@ -1,3 +1,5 @@
+
+
 import numpy as np
 import pandas as pd
 import mne
@@ -92,18 +94,24 @@ def compute_clean_powers(edf_path, p2p_thresh=150):
 
 
 def add_zrel_zabs(df, norms_age):
-    """Add Z-scores (relative and absolute) vs Cuban norms for a given age row."""
+    """Add Z-scores (relative power) vs Cuban norms for a given age row (long format)."""
     dfz = df.copy()
+
     for band in ["Delta", "Theta", "Alpha", "Beta"]:
-        mean = norms_age[f"{band}_mean"].values
-        sd = norms_age[f"{band}_sd"].values
-        chs = norms_age["Channel"].values
-        for i, ch in enumerate(chs):
-            try:
+        # Select the rows for this band
+        band_rows = norms_age[norms_age["Band"].str.lower() == band.lower()]
+
+        for _, row in band_rows.iterrows():
+            ch = row["Channel"]
+            if ch in df.index:
                 val = df.loc[ch, f"Rel_{band}"]
-                dfz.loc[ch, f"Zrel_{band}"] = (val - mean[i]) / sd[i]
-            except Exception:
-                dfz.loc[ch, f"Zrel_{band}"] = np.nan
+                mean = row["RelMean"]
+                sd = row["RelSD"]
+                try:
+                    dfz.loc[ch, f"Zrel_{band}"] = (val - mean) / sd
+                except Exception:
+                    dfz.loc[ch, f"Zrel_{band}"] = np.nan
+
     return dfz
 
 
@@ -144,3 +152,11 @@ def _topomap_png(df, band, title):
     plt.close(fig)
     return buf.getvalue()
 
+
+def generate_all_topomaps(df):
+    """Generate topomap PNGs for all bands and return as dict {band: png_bytes}."""
+    maps = {}
+    for band in ["Rel_Delta", "Rel_Theta", "Rel_Alpha", "Rel_Beta"]:
+        if band in df.columns:
+            maps[band] = _topomap_png(df, band, f"Topomap: {band}")
+    return maps
