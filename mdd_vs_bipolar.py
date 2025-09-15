@@ -4,7 +4,7 @@ import mne
 from scipy.signal import welch   # ✅ use SciPy instead of MNE psd_welch
 
 import matplotlib
-matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud (headless)
+matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud
 import matplotlib.pyplot as plt
 import io
 
@@ -45,20 +45,26 @@ def get(df, ch, band):
 def compute_raw_powers(edf_path):
     """Compute relative band powers from EDF file."""
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+
+    # Use SciPy Welch
     psds, freqs = psd_welch(
         raw, fmin=1, fmax=30, n_fft=1024,
         n_overlap=256, n_per_seg=512, verbose=False
     )
-    psds = np.mean(psds, axis=0)
+
+    # psds shape: (n_channels, n_freqs)
     bands = {"Delta": (1, 4), "Theta": (4, 8), "Alpha": (8, 12), "Beta": (12, 30)}
     data = {}
+
     for ch_idx, ch in enumerate(raw.ch_names):
         row = {}
         total = np.sum(psds[ch_idx])
         for b, (lo, hi) in bands.items():
             idx = np.logical_and(freqs >= lo, freqs < hi)
-            row[f"Rel_{b}"] = np.sum(psds[ch_idx, idx]) / total if total > 0 else np.nan
+            band_power = np.sum(psds[ch_idx, idx]) if total > 0 else np.nan
+            row[f"Rel_{b}"] = band_power / total if total > 0 else np.nan
         data[ch] = row
+
     return pd.DataFrame(data).T
 
 
@@ -69,14 +75,19 @@ def compute_clean_powers(edf_path, p2p_thresh=150):
     kept_epochs = []
     sf = int(raw.info["sfreq"])
     nper = 2 * sf  # 2-second epochs
+
     for start in range(0, data.shape[1] - nper, nper):
         seg = data[:, start:start+nper]
         if np.max(seg) - np.min(seg) < p2p_thresh:
             kept_epochs.append(seg)
+
     if not kept_epochs:
         return compute_raw_powers(edf_path), 0
+
     clean_data = np.concatenate(kept_epochs, axis=1)
     raw._data = clean_data
+
+    # Recompute powers with SciPy Welch
     return compute_raw_powers(edf_path), len(kept_epochs)
 
 
@@ -132,3 +143,4 @@ def _topomap_png(df, band, title):
     plt.savefig(buf, format="png")
     plt.close(fig)
     return buf.getvalue()
+
