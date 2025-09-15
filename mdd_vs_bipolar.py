@@ -1,9 +1,12 @@
+
 import numpy as np
 import pandas as pd
 import mne
-from scipy.signal import welch   # ✅ use SciPy Welch instead of MNE psd_welch
+from scipy.signal import welch   # ✅ SciPy Welch instead of MNE psd_welch
 from scipy.interpolate import griddata
 from matplotlib.patches import Circle
+from docx.shared import Inches
+from docx import Document
 
 import matplotlib
 matplotlib.use("Agg")  # ✅ safe for Streamlit Cloud
@@ -188,3 +191,24 @@ def generate_all_topomaps(df):
         if band in df.columns:
             maps[band] = _topomap_png(df, band, f"Topomap: {band}")
     return maps
+
+
+# -------------------
+# Word export helper
+# -------------------
+
+def make_two_per_row_section(doc, items):
+    """
+    Add images two per row to a Word document.
+    items = list of (title, image_bytes)
+    """
+    table = doc.add_table(rows=0, cols=2)
+    row_cells = None
+    for i, (title, img_bytes) in enumerate(items):
+        if i % 2 == 0:
+            row_cells = table.add_row().cells
+        cell = row_cells[i % 2]
+        cell.add_paragraph(title)
+        run = cell.add_paragraph().add_run()
+        run.add_picture(io.BytesIO(img_bytes), width=Inches(2.5))
+    return doc
